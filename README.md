@@ -4,7 +4,7 @@ This repository hosts the code for the deep inverse Rosenblatt transport methods
 
 Load both `src` and `external` folders to use the code. The `MultiIndices` class in the `external` folder is used by `SparseFun` for sparse polynomial approximations. 
 
-See the repository `https://github.com/DeepTransport/deep-tensor-examples` for more examples and `https://github.com/dolgov/TT-IRT` for a different implementation.
+See the repository [`deep-tensor-examples`](https://github.com/DeepTransport/deep-tensor-examples) for more examples and [`TT-IRT`](https://github.com/dolgov/TT-IRT) for a different implementation.
 
 Important change of interfaces:
 * All polynomial classes have name started with Capital letters. 
