@@ -28,6 +28,4 @@ References:
     * Gorodetsky, Karaman and Marzouk (2018). A continuous analogue of the tensor-train decomposition. Computer Methods in Applied Mechanics and Engineering 347, 59-84.
     * Bigoni, Engsig-Karup, Marzouk (2016). Spectral tensor-train decomposition. SIAM Journal on Scientific Computing 38(4), A2405-A2439.
 
-The `MultiIndices` class is from the `ApproximationToolbox` package of Nouy:
-    * https://github.com/anthony-nouy/ApproximationToolbox
-    * https://anthony-nouy.github.io/ApproximationToolbox/
+The `MultiIndices` class is from the [`ApproximationToolbox`](https://github.com/anthony-nouy/ApproximationToolbox) package of Nouy.
