@@ -54,6 +54,7 @@ classdef Oned
         eval_measure_deri(obj,x)
         eval_log_measure_deri(obj,x)
         sample_measure(obj,n)
+        sample_measure_skip(obj,n)
         %
         point_selection(obj) 
         %
@@ -179,6 +180,7 @@ classdef Oned
             %                 corefficents (spectral)
             
             f = obj.int_W*interp_w;
+            %f = interp_w(1);
         end
         
     end

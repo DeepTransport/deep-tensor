@@ -8,7 +8,7 @@ if isa(arg, 'cell')
         warning('bases cells 3:%d are not used and will be ignored', numel(arg));
         bases = arg(1:2);
     elseif (numel(arg)<2)
-        warning('bases cells 3:%d are not used and will be ignored', numel(arg));
+        warning('repeat the first base');
         bases = repmat(arg(1), 1, 2);
     else
         bases = arg;

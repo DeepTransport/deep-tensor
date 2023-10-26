@@ -1,4 +1,4 @@
-Updated on 12/04/2023. 
+Updated on 26/10/2023. 
 
 This repository hosts the code for the deep inverse Rosenblatt transport methods.
 
@@ -29,3 +29,10 @@ References:
     * Bigoni, Engsig-Karup, Marzouk (2016). Spectral tensor-train decomposition. SIAM Journal on Scientific Computing 38(4), A2405-A2439.
 
 The `MultiIndices` class is from the [`ApproximationToolbox`](https://github.com/anthony-nouy/ApproximationToolbox) package of Nouy.
+
+For TTIRT:
+
+* CIRT and Jacobian need to be implemented
+* Examples 3 and 4 of TT_IRT_OU need to be need to be tested
+* TT IRT with domain transformation need to tested
+

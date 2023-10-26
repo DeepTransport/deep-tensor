@@ -12,39 +12,54 @@ d = ndims(obj.approx);
 nk = cardinal(obj.approx);
 [dz,n] = size(z);
 r = zeros(dz,n);
+%r1 = zeros(dz,n);
 
-nbatch = ceil(n/obj.batch_size);
-start_i = 1:obj.batch_size:n;
-end_i = start_i+(obj.batch_size-1);
-end_i(end) = n;
+%nbatch = ceil(n/obj.batch_size);
+%start_i = 1:obj.batch_size:n;
+%end_i = start_i+(obj.batch_size-1);
+%end_i(end) = n;
 
 if nargout < 3
-    brl = repmat(obj.approx.data(:)', n, 1); % n x nk
+    brl = repmat(obj.approx.data.coeff(:)', n, 1); % n x nk
     for k = 1:dz
         nc = cardinal(obj.oned_cdfs{obj.order(k)});
         % for each i in (1..nk), outter product of bc(:,i) and brl(:,i)
         % tmp is nc x (n x nk)
+        %{
         for batch = 1:nbatch
             ind = start_i(batch):1:end_i(batch);
             ni = numel(ind);
             tmp = reshape(repmat(obj.bases_cdf_nodes{obj.order(k)},ni,1), nc, ni*nk).*reshape(brl(ind,:),1,ni*nk);
             if k < d
-                pk = reshape( sum((reshape(tmp,nc*ni,nk)*obj.cum_P{obj.order(k)}).^2,2), nc, ni);
+                pk1 = reshape( sum((reshape(tmp,nc*ni,nk)*obj.cum_P{obj.order(k)}).^2,2), nc, ni);
             else
-                pk = reshape( sum(reshape(tmp,nc*ni,nk),2).^2, nc, ni);
+                pk1 = reshape( sum(reshape(tmp,nc*ni,nk),2).^2, nc, ni);
             end
-            r(obj.order(k),ind) = invert_cdf(obj.oned_cdfs{obj.order(k)}, pk+obj.tau, z(obj.order(k),ind));
+            r1(obj.order(k),ind) = invert_cdf(obj.oned_cdfs{obj.order(k)}, pk1+obj.tau, z(obj.order(k),ind));
         end
+        %}
         %
-        bk = eval_basis(obj.approx.oneds{obj.order(k)}, r(obj.order(k),:));
-        brl = brl.*bk(:,obj.approx.indices.array(:,obj.order(k))+1);
+        pk = zeros(nc,n);
+        for i = 1:nc
+            if k < d
+                pk(i,:) = sum(((obj.bases_cdf_nodes{obj.order(k)}(i,:).*brl)*obj.cum_P{obj.order(k)}).^2, 2);
+            else
+                pk(i,:) = sum((obj.bases_cdf_nodes{obj.order(k)}(i,:).*brl), 2).^2;
+            end
+        end
+        r(obj.order(k),:) = invert_cdf(obj.oned_cdfs{obj.order(k)}, pk+obj.tau, z(obj.order(k),:));
+        %
+        %norm(r-r1)
+        %
+        bk = eval_basis(obj.approx.base.oneds{obj.order(k)}, r(obj.order(k),:));
+        brl = brl.*bk(:,obj.approx.data.I.array(:,obj.order(k))+1);
     end
     if dz < d
         f = sum((reshape(brl,n,nk)*obj.cum_P{obj.order(dz+1)}).^2,2);
     else
         f = sum(reshape(brl,n,nk),2).^2;
     end
-    mlogw = eval_measure_potential_reference(obj.approx, r, 1:dz);
+    mlogw = eval_measure_potential_reference(obj.approx.base, r, 1:dz);
     f = log(obj.z) - log(f(:)'+obj.tau) + mlogw;
 else
     if dz == d
@@ -53,11 +68,12 @@ else
         frs = cell(d,1);
         block_basis = cell(d,1);
         %
-        brl = repmat(obj.approx.data(:)', n, 1); % n x nk
+        brl = repmat(obj.approx.data.coeff(:)', n, 1); % n x nk
         for k = 1:d
             nc = cardinal(obj.oned_cdfs{obj.order(k)});
             % for each i in (1..nk), outter product of bc(:,i) and brl(:,i)
             % tmp is nc x (n x nk)
+            %{
             for batch = 1:nbatch
                 ind = start_i(batch):1:end_i(batch);
                 ni = numel(ind);
@@ -69,8 +85,18 @@ else
                 end
                 r(obj.order(k),ind) = invert_cdf(obj.oned_cdfs{obj.order(k)}, pk+obj.tau, z(obj.order(k),ind));
             end
-            B = eval_basis(obj.approx.oneds{obj.order(k)}, r(obj.order(k),:));
-            block_basis{obj.order(k)} = B(:,obj.approx.indices.array(:,obj.order(k))+1);
+            %}
+            pk = zeros(nc,n);
+            for i = 1:nc
+                if k < d
+                    pk(i,:) = sum(((obj.bases_cdf_nodes{obj.order(k)}(i,:).*brl)*obj.cum_P{obj.order(k)}).^2, 2);
+                else
+                    pk(i,:) = sum((obj.bases_cdf_nodes{obj.order(k)}(i,:).*brl), 2).^2;
+                end
+            end
+            r(obj.order(k),:) = invert_cdf(obj.oned_cdfs{obj.order(k)}, pk+obj.tau, z(obj.order(k),:));
+            B = eval_basis(obj.approx.base.oneds{obj.order(k)}, r(obj.order(k),:));
+            block_basis{obj.order(k)} = B(:,obj.approx.data.I.array(:,obj.order(k))+1);
             %
             brl = brl.*block_basis{obj.order(k)};
             fls{obj.order(k)} = brl;
@@ -83,10 +109,10 @@ else
         end
         % assemble gradient
         for k = 1:d
-            dB = eval_basis_deri(obj.approx.oneds{obj.order(k)}, r(obj.order(k),:));
-            D = dB(:,obj.approx.indices.array(:,obj.order(k))+1);
+            dB = eval_basis_deri(obj.approx.base.oneds{obj.order(k)}, r(obj.order(k),:));
+            D = dB(:,obj.approx.data.I.array(:,obj.order(k))+1);
             if k == 1
-                g(obj.order(k),:) = ( (D.*frs{obj.order(k+1)})*obj.approx.data(:) )';
+                g(obj.order(k),:) = ( (D.*frs{obj.order(k+1)})*obj.approx.data.coeff(:) )';
             elseif k == d
                 g(obj.order(k),:) = sum(D.*fls{obj.order(k-1)}, 2)';
             else
@@ -94,8 +120,8 @@ else
             end
         end
         %
-        mlogw = eval_measure_potential_reference(obj.approx, r);
-        gmlogw = eval_measure_potential_reference_grad(obj.approx, r);
+        mlogw = eval_measure_potential_reference(obj.approx.base, r);
+        gmlogw = eval_measure_potential_reference_grad(obj.approx.base, r);
         %
         f = obj.tau + fsqrt.^2;
         %

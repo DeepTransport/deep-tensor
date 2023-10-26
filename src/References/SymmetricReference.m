@@ -76,7 +76,7 @@ classdef SymmetricReference < Reference
             % pseudo random samples
             u = rand(d, n);
             u = u*(obj.right-obj.left) + obj.left;
-            z = invert_cdf(obj, u);
+            z = invert_ref_cdf(obj, u);
             if obj.is_truncated
                 z(z >= domain_right(obj.domain)) = domain_right(obj.domain);
                 z(z <= domain_left (obj.domain)) = domain_left (obj.domain);

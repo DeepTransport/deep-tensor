@@ -37,6 +37,10 @@ classdef Fourier < Spectral
             x = rand(1,n)*2 - 1;
         end        
         
+        function x = sample_measure_skip(obj, n)
+            x = sample_measure(obj, n);
+        end
+        
         function w = eval_measure(obj, x)
             w = 0.5*ones(size(x));
         end        

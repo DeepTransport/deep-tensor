@@ -9,7 +9,7 @@ hold on
 
 for j = 1:size(lags, 2)
     fx  = f(lags{j}.nodes);
-    fi  = eval(lags{j}, fx(:), xs);
+    fi  = eval_radon(lags{j}, fx(:), xs);
     plot(xs, fi)
     plot(lags{j}.nodes, fx(:), 'o')
 end

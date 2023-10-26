@@ -2,10 +2,9 @@ close all
 
 % define the joint density
 sig = 0.3;
-fun = @(z) joint_banana(z,sig);
+model = ConditionalBanana(sig);
 
-
-dom = BoundedDomain([-5,5]);
+dom  = BoundedDomain([-5,5]);
 diag = GaussReference(0, 1, dom);
 base = ApproxBases(Lagrangep(2,30), dom, 3);
 % opt = FTToption('max_als', 2, 'als_tol', 1E-8, 'local_tol', 1E-5, 'kick_rank', 3, 'init_rank', 30, 'max_rank', 50);
@@ -13,13 +12,11 @@ base = ApproxBases(Lagrangep(2,30), dom, 3);
 
 temp = Tempering1('min_beta', 1E-3, 'ess_tol', 0.5);
 
-sirt_opt = FTTOption('max_als', 2, 'als_tol', 1E-8, 'local_tol', 1E-5, 'kick_rank', 3, 'init_rank', 30, 'max_rank', 50);
+sirt_opt = TTOption('max_als', 2, 'als_tol', 1E-8, 'local_tol', 1E-5, 'kick_rank', 3, 'init_rank', 30, 'max_rank', 50);
 dirt_opt = DIRTOption('method', 'Aratio');
 
 if ~exist('irt')
-%     % Easy interface to (conditional) DIRT
-%     irt = DIRT(fun, 3, [-4, 4]);
-    irt = TTDIRT(fun, base, temp, diag, sirt_opt, dirt_opt);    
+    irt = TTDIRT(@(x)model.eval_potential_joint(x), base, temp, diag, sirt_opt, dirt_opt);    
 end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -32,16 +29,6 @@ red    = '#D95319';
 blue   = '#0072BD';
 purple = '#7E2F8E';
 grey = [0.7, 0.7, 0.7];
-
-%{
-%
-us = linspace(0, 1, n);
-rxs = invert_cdf(irt.ref, us);
-rys = rxs;
-[xx,yy] = meshgrid(rxs, rys);
-rts = [xx(:), yy(:)]';
-%}
-
 
 n  = 100;
 xs = linspace(-4, 4, n);
@@ -59,7 +46,7 @@ for ii = 1:length(data)
     ry = eval_rt(irt, dat); % reference data sample
     
     % true conditional, unnormalised
-    [mllkd,mlp] = fun([repmat(dat,1,size(xts,2));xts]);
+    [mllkd,mlp] = model.eval_potential_joint([repmat(dat,1,size(xts,2));xts]);
     bf = exp(-mllkd-mlp);
     % conditional irt density in target space, unnormalised
     rf = eval_potential(irt, [repmat(dat,1,size(xts,2));xts]);
@@ -84,7 +71,9 @@ for ii = 1:length(data)
     axis([-2, 2, -1, 2])
     
     % pullback density of the true conditinal
-    mlf = pullback(irt, fun, [repmat(ry,1,size(rts,2));rts]);
+    mlf = pullback(irt, @(x)model.eval_potential_joint(x), [repmat(ry,1,size(rts,2));rts]);
+    % the following does the same
+    % mlf = model.pullback_potential_nuts(irt, ry, rts);
     %
     
     r = random(irt.ref, 2, 256); % sample the reference measure
@@ -169,22 +158,22 @@ for ii = 1:length(data)
     nsteps = 2^10;
     init = [0.9; 0];
     tic;
-    out1 = NUTS(@(x) log_target(fun,dat,x), init, nsteps);
+    out1 = NUTS(@(x)model.eval_potential_conditional(dat,x), init, nsteps);
     xx1 = out1.samples;
     toc
     %
     tic;
-    out2 = NUTS(@(z) log_target_pullback_nuts(irt,fun,ry,z), init, nsteps);
+    out2 = NUTS(@(z)model.pullback_potential_nuts(irt,ry,z), init, nsteps);
     xs2 = eval_irt(irt, [repmat(ry,1,size(out2.samples,2));out2.samples]);
     xx2 = xs2(2:3,:);
     toc
     tic; % Metropolized independence sampler
-    out3 = pCN(@(z) log_target_pullback_pcn(irt,fun,ry,z), init, nsteps, log(2));
+    out3 = pCN(@(z)model.pullback_potential_pcn(irt,ry,z), init, nsteps, log(2));
     xs3 = eval_irt(irt, [repmat(ry,1,size(out3.samples,2));out3.samples]);
     xx3 = xs3(2:3,:);
     toc
     tic; % negatively correlated pCN
-    out4 = pCN(@(z) log_target_pullback_pcn(irt,fun,ry,z), init, nsteps, log(10));
+    out4 = pCN(@(z)model.pullback_potential_pcn(irt,ry,z), init, nsteps, log(10));
     xs4 = eval_irt(irt, [repmat(ry,1,size(out4.samples,2));out4.samples]);
     xx4 = xs4(2:3,:);
     toc   
@@ -282,58 +271,3 @@ for ii = 1:length(data)
     title('')
     
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%{
-function [mlf,gmlf] = log_target(func,y,x)
-
-[mllkd,mlp,gmllkd,gmlp] = func([repmat(y,1,size(x,2));x]);
-%
-mlf = mllkd + mlp;
-ind = length(y) + (1:size(x,1));
-gmlf = gmllkd(ind,:)+gmlp(ind,:);
-
-end
-
-function [mlf,gmlf] = log_target_pullback_nuts(irt,func,ry,z)
-
-[mlf,gmlf] = pullback(irt, func, [repmat(ry,1,size(z,2));z]);
-%
-ind = length(ry) + (1:size(z,1));
-gmlf = gmlf(ind,:);
-
-end
-
-function [mllkd,mlp] = log_target_pullback_pcn(irt,func,ry,z)
-
-mlf = pullback(irt, func, [repmat(ry,1,size(z,2));z]);
-%
-mlp = 0.5*sum(z.^2,1);
-mllkd = mlf - mlp;
-
-end
-%}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%{
-function [f1, f2, g1, g2] = joint_banana(z, sigma)
-
-y = z(1,:);
-u = z(2:3,:);
-F = log( (1-u(1,:)).^2 + 100*(u(2,:)-u(1,:).^2).^2 );
-G = [F-3; F-5];
-%
-mllkd = sum((G-y).^2,1)/(2*sigma^2);
-mlp = 0.5*sum(u.^2,1);
-
-f1 = mllkd + mlp - 0.5*sum(z.^2,1);
-f2 = 0.5*sum(z.^2,1);
-
-if nargout > 2
-    tmp = [2*(u(1,:)-1)+400*(u(1,:).^2-u(2,:)).*u(1,:); 200*(u(2,:)-u(1,:).^2)]...
-        ./( (1-u(1,:)).^2 + 100*(u(2,:)-u(1,:).^2).^2 );
-    g1 = [-(2*F-2*y-8); (2*F-2*y-8)*tmp]/sigma^2;
-    g2 = z;
-end
-
-end
-%}

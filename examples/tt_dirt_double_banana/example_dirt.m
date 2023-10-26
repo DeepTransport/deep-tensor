@@ -2,7 +2,9 @@
 sig = 0.3;
 %dat = [3.940392199905546; 4.403271869259551]; % 2 bananas
 dat = [3; 5]; % 2 bananas
-fun = @(z) fun_banana(z, dat, sig, 1);
+model = DoubleBanana(sig, dat);
+
+fun = @(z) eval_potential_dirt(model, z);
 
 % Gaussian
 ref   = @(u) erfinv(u*2-1)*sqrt(2);
@@ -65,7 +67,7 @@ bases{4} = ApproxBases(Lagrangep(5,10), dom, d);
 
 temp = Tempering1('min_beta', 1E-3, 'ess_tol', 0.3);
 
-sirt_opt = FTTOption('tt_method', 'random', 'max_als', 1, 'als_tol', 1E-8, 'local_tol', 1E-2, 'kick_rank', 2, 'init_rank', 40, 'max_rank', 50);
+sirt_opt = TTOption('tt_method', 'random', 'max_als', 1, 'als_tol', 1E-8, 'local_tol', 1E-2, 'kick_rank', 2, 'init_rank', 40, 'max_rank', 50);
 
 dirt_opt1 = DIRTOption('method', 'Aratio'); %, 'dhell_tol', 1E-3);
 dirt_opt2 = DIRTOption('method', 'Eratio'); %, 'dhell_tol', 1E-3);
@@ -175,17 +177,3 @@ for k = 1:num_layers(eirt)
         title('e. ratio fun', 'interpreter', 'latex', 'fontsize', 20)
     end
 end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%{
-function [mllkd, mlp] = fun_banana(u, data, sigma, beta)
-
-F   = log((1-u(1,:)).^2 + 100*(u(2,:)-u(1,:).^2).^2);
-mllkd = sum((F-data).^2,1)*beta/(2*sigma^2);
-mlp = 0.5*sum(u.^2,1);
-
-%lpt = -sum((F-data).^2,1)*beta/(2*sigma^2) - sum(u.^2,1)*beta/2;%
-%p   = exp(lpt);
-
-end
-%}

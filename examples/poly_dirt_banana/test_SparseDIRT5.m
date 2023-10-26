@@ -13,7 +13,9 @@ X = [gridxx(:),gridyy(:)]';
 
 sigma = .5;
 a = 1;
-func = @(x,mask) banana_dirt(x, sigma, a);
+model = Banana(sigma, a);
+func = @(x,mask) model.eval_potential_dirt(x);
+
 % plot
 clf
 fplot = reshape(func(X),nx,nx);
@@ -37,10 +39,10 @@ opt.init_total_degree = 3;
 opt.max_dim_basis = 200;
 opt.max_sample_size = 2e3;
 opt.enrich_degree = 2;
-opt.init_sample_size = 2;
+opt.init_sample_size = 3;
 opt.enrich_sample_size = 1; 
 opt.display_iterations = false;
-opt.adaptation_rule = 'margin'; %'reducedmargin';
+opt.adaptation_rule = 'reducedmargin';
 opt.fast = true;
 
 dirt_opt = DIRTOption('method', 'Eratio', 'defensive', 1E-4);
@@ -49,7 +51,7 @@ dirt_opt = DIRTOption('method', 'Eratio', 'defensive', 1E-4);
 poly_dirt = SparseDIRT(func, base, temp1, diag, opt, dirt_opt); %, 'betas', betas);
 
 
-tt_opt = FTTOption('tt_method', 'random', 'max_als', 1, 'als_tol', 1E-8, 'local_tol', 1E-2, 'kick_rank', 2, 'init_rank', 5, 'max_rank', 10);
+tt_opt = TTOption('tt_method', 'random', 'max_als', 1, 'als_tol', 1E-8, 'local_tol', 1E-2, 'kick_rank', 2, 'init_rank', 5, 'max_rank', 10);
 tt_dirt = TTDIRT(func, base, temp1, diag, tt_opt, dirt_opt);
 
 %% plot

@@ -93,6 +93,7 @@ classdef PiecewiseCDF < OnedCDF
         function r = invert_cdf(obj, pk, xi)
             if (sum(pk(:)<0)>0)
                 disp(['negative pdf ' num2str(sum(pk(:)<0))])
+                %pk = abs(pk);
             end
             data = pdf2cdf(obj, pk);
             %

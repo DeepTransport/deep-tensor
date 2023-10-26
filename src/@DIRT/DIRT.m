@@ -17,7 +17,7 @@ classdef DIRT
     %   min_beta    - Minimum temperature
     %   ess_tol     - Tolerance for increasing the temperature
     %   betas       - List of temperatures
-    %   n_evals     - Number of function evaluations in TT cross.
+    %   n_eval     - Number of function evaluations in TT cross.
     %
     % DIRT Methods:
     %   eval_irt    - X = R^{-1}(Z), where X is the target random variable,
@@ -119,7 +119,7 @@ classdef DIRT
         %
         lis_opt
         %
-        n_evals
+        n_eval
         %
         init_samples
         prev_approx
@@ -135,6 +135,10 @@ classdef DIRT
         defaultBridge = Tempering1('min_beta', 1E-3, 'ess_tol', 0.4);
     end
     
+    properties (Abstract, Constant)
+        defaultSIRTOpt
+    end
+    
     methods (Static)
         [bases,d] = build_bases(arg, ref)
         % build the approximation bases for DIRT
@@ -142,7 +146,7 @@ classdef DIRT
     
     methods (Abstract)
         get_pre_sample_size(obj)
-        get_debugger(obj, n_layers, samples, density)
+        get_inputdata(obj, base, n_layers, samples, density)
         get_new_layer(obj, func, bases, sirt_opt, n_layers, samples, density)
     end
 
@@ -180,20 +184,19 @@ classdef DIRT
             r = eval_irt(obj, z);
         end
 
-        function obj = DIRT(defaultOpt, func, arg, varargin)
+        function obj = DIRT(func, arg, varargin)
             % Call FTT constructor to build the FTT and setup data
             % structures for SIRT. Need to run marginalise after this.
             % parsing inputs
             %
             p = inputParser;
-            addRequired(p, 'defaultOpt');
             addRequired(p, 'func',  @(x) isa(x, 'function_handle'));
             addRequired(p, 'arg');
             %
             addOptional(p, 'bridge', DIRT.defaultBridge);
             addOptional(p, 'ref', DIRT.defaultRef);
             %
-            addOptional(p, 'sirt_option',defaultOpt);
+            addOptional(p, 'sirt_option',obj.defaultSIRTOpt);
             addOptional(p, 'dirt_option',DIRT.defaultDIRTOption);
             addOptional(p, 'lis_option',DIRT.defaultLISOption);
             %
@@ -201,7 +204,7 @@ classdef DIRT
             addParameter(p, 'prev_approx',{});
             %
             p.KeepUnmatched = true;
-            parse(p,defaultOpt,func,arg,varargin{:});
+            parse(p,func,arg,varargin{:});
             %
             obj.bridge = p.Results.bridge;
             obj.ref = p.Results.ref;
@@ -225,34 +228,6 @@ classdef DIRT
                     obj = build(obj, func, bases, sirt_opt);
             end
         end
-
-        %{
-        function obj = DIRT(func, arg, bridge, ref, sirt_opt, dirt_opt, lis_opt, init_samples)
-            % Call FTT constructor to build the FTT and setup data
-            % structures for SIRT. Need to run marginalise after this.
-            % parsing inputs
-            %
-            obj.bridge = bridge;
-            obj.ref = ref;
-            obj.dirt_opt = dirt_opt;
-            obj.init_samples = init_samples;
-            %
-            [bases, d] = DIRT.build_bases(arg, obj.ref);
-            obj.d = d;
-            obj.lis_opt = lis_opt;
-            %
-            %
-            switch obj.lis_opt.method
-                case {'reduction'}
-                    obj.lis_opt = set_max_rank(lis_opt, min(ceil(lis_opt.rank_frac*d),d));
-                    obj = build_lis(obj, func, bases, sirt_opt);
-                case {'unitary'}
-                    obj = build_lis(obj, func, bases, sirt_opt);
-                case {'none'}
-                    obj = build(obj, func, bases, sirt_opt);
-            end
-        end
-        %}
     end
     
 end

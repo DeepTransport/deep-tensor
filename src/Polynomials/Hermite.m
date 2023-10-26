@@ -16,6 +16,10 @@ classdef Hermite < Recurr
             x = randn(1,n);
         end        
         
+        function x = sample_measure_skip(obj, n)
+            x = sample_measure(obj, n);
+        end
+        
         function w = eval_measure(obj, x)
             w = exp(-0.5*x.^2)/sqrt(2*pi);
         end    

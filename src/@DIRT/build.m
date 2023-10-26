@@ -1,7 +1,7 @@
 function obj = build(obj, func, bases, sirt_opt)    
 
 obj.irts = {};
-obj.n_evals = 0;
+obj.n_eval = 0;
 obj.logz = 0;
 %
 ns = get_pre_sample_size(obj);
@@ -33,7 +33,7 @@ while n_layers < obj.dirt_opt.max_layers
     %
     [str,log_weights] = print_str(obj.bridge, mllkds, mlps, mlogfx);
     %
-    disp([str, sprintf(', #fevals=%3.3e \n', obj.n_evals)]);
+    disp([str, sprintf(', #fevals=%3.3e \n', obj.n_eval)]);
     %
     ind = datasample(1:numel(log_weights), numel(log_weights), 'weights', exp(log_weights),'Replace',true);
     %
@@ -45,7 +45,7 @@ while n_layers < obj.dirt_opt.max_layers
     obj.irts{n_layers+1} = get_new_layer(obj, func, bases, sirt_opt, n_layers, samples(:,ind), density(ind));
     %
     obj.logz = obj.logz + log(obj.irts{n_layers+1}.z);
-    obj.n_evals = obj.n_evals + obj.irts{n_layers+1}.approx.n_evals;
+    obj.n_eval = obj.n_eval + obj.irts{n_layers+1}.approx.n_eval;
     %
     % We need reference samples already here, in case we quit after 1 layer
     samples = random(obj.ref, obj.d, ns);
@@ -69,7 +69,7 @@ end
 
 %
 fprintf('\n\niteration=%2d, Hell error=%3.3e, cum#fevals=%3.3e\n', ...
-    num_layers(obj.bridge), sqrt(dh2), obj.n_evals);
+    num_layers(obj.bridge), sqrt(dh2), obj.n_eval);
 %
 
 

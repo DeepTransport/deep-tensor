@@ -22,7 +22,7 @@ for i = 1:d
     [~,fm(i,:)] = eval_irt(airt, rm);
 end
 gad = (fp-fm)/(2*tol);
-norm(ga(:) - gad(:))
+norm(ga(:) - gad(:))/norm(ga(:))
 
 fp = zeros(d,n);
 fm = zeros(d,n);
@@ -35,5 +35,5 @@ for i = 1:d
     [~,fm(i,:)] = eval_irt(eirt, rm);
 end
 ged = (fp-fm)/(2*tol);
-norm(ge(:) - ged(:))
+norm(ge(:) - ged(:))/norm(ge(:))
 

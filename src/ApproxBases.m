@@ -1,13 +1,69 @@
 classdef ApproxBases
+    % ApproxBases class
+    %
+    % This class contains tensor-product polynomials basis functions and
+    % mappings from the approximation domain to the reference domain.
+    %
+    % ApproxBases Properties:
+    %   oneds - Tensor-product polynomials basis functions, defined on the
+    %           reference domain
+    %   oned_domains -
+    %           Information about the tensor-product input approximation 
+    %           domain and its mapping to the reference domain
+    %
+    % ApproxBases Methods:
+    %   cardinals - 
+    %           Cadinalities of the basis functions or the cardinality of
+    %           the basis function for a chosen indexed coordinate.
+    %   ndims - Dimension of the approximation domain
+    %   duplicate_bases -
+    %           Duplicates the current class
+    %   remove_bases -
+    %           Removes basis functions and domain mappings for a given set
+    %           of indexed coordinates
+    %   reference2domain -
+    %           Maps reference variables to the input domain and computes
+    %           its jacobian
+    %   domain2reference -
+    %           Maps input variables to the reference domain and computes
+    %           its jacobian
+    %   reference2domain_log_density -
+    %           Computes the logarithm of the induced density of the mapping 
+    %           and its gradient
+    %   reference2domain_log_density -
+    %           Computes the logarithm of the induced density of the mapping
+    %           and its gradient
+    %   
+    %   The following deal with the reference domain
+    %   sample_measure_reference -
+    %           Generates random variables from the product-form reference 
+    %           measures of the basis functions
+    %   eval_measure_potential_reference -
+    %           Computes the negative logarithm of the reference measure of
+    %           the basis functions for given reference variable
+    %   eval_measure_potential_reference_grad -
+    %           Computes the gradient of the negative logarithm of the 
+    %           reference measure of the basis functions for given reference
+    %           variable
+    %
+    %   The following deal with the input domain
+    %   sample_measure -
+    %           Generates random variables from the product-form reference 
+    %           measures of the basis functions, and then maps them to the
+    %           input domain
+    %   eval_measure_potential -
+    %           Computes the negative logarithm of the reference measure and
+    %           its gradient for variables in the input domain, with the
+    %           domain mapping
+    %   eval_measure -
+    %           Computes the reference measure density for variables in the
+    %           input domain, with the domain mapping
+    %
+    % see also ONED and DOMAIN
     
     properties
         oneds
         oned_domains
-    end
-    
-    methods
-        [f,g] = eval_reference(obj, z)
-        g = grad_reference(obj, z)
     end
     
     methods
@@ -69,6 +125,13 @@ classdef ApproxBases
             z = zeros(ndims(obj),n);
             mlogf = zeros(1,n);
             for k = 1:ndims(obj)
+                %{
+                if isa(obj.oned_domains{k}, 'MappedDomain')
+                    z(k,:) = sample_measure_skip(obj.oneds{k},n);
+                else
+                    z(k,:) = sample_measure(obj.oneds{k},n);
+                end
+                %}
                 z(k,:) = sample_measure(obj.oneds{k},n);
                 mlogf = mlogf - eval_log_measure(obj.oneds{k},z(k,:));
             end
@@ -170,7 +233,6 @@ classdef ApproxBases
 
         function arg = duplicate_bases(obj)
             arg = ApproxBases(obj.oneds, obj.oned_domains);
-            arg.sampling_measure = obj.sampling_measure;
         end
 
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -232,34 +294,6 @@ classdef ApproxBases
         function fx = eval_measure(obj, x)
             fx = eval_measure_potential(obj, x);
             fx = exp(-fx);
-        end
-        
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
-        function fx = eval(obj, x)
-            % Evaluate the approximated function. f = EVAL(approx, x)
-            %
-            %   x   - input variables, d x n.
-            %   f   - function values at x, 1 x n
-            %
-            
-            z = domain2reference(obj, x);
-            fx = eval_reference(obj, z);
-            
-        end
-        
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        
-        function [gx,fx] = grad(obj, x)
-            % Evaluate the gradient of the approximation
-            %   g = GRAD(approx, x)
-            %
-            %   x   - input variables, d x n, in the reference domain
-            %   g   - gradient at x, d x n
-            
-            [z,dzdx] = domain2reference(obj, x);
-            [gz, fx] = grad_reference(obj, z);
-            gx = gz.*dzdx;
         end
         
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

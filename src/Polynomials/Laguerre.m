@@ -21,6 +21,10 @@ classdef Laguerre < Recurr
             w = exp(-x);
         end  
 
+        function x = sample_measure_skip(obj, n)
+            x = sample_measure(obj, n);
+        end
+        
         function w = eval_log_measure(obj, x)
             w = -x;
         end   

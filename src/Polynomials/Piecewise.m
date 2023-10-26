@@ -54,6 +54,10 @@ classdef Piecewise < Oned
             x = rand(1,n)*(obj.grid(end)-obj.grid(1))+obj.grid(1);
         end
 
+        function x = sample_measure_skip(obj, n)
+            x = sample_measure(obj, n);
+        end
+
         function w = eval_measure(obj, x)
             w = ones(size(x)) * ( 1/(obj.grid(end)-obj.grid(1)) );
         end        

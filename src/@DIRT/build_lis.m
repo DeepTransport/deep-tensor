@@ -1,7 +1,7 @@
 function obj = build_lis(obj, func, bases, sirt_opt)
 
 obj.irts = {};
-obj.n_evals = 0;
+obj.n_eval = 0;
 obj.logz = 0;
 
 if ~isa(obj.ref, 'GaussReference')
@@ -26,7 +26,7 @@ while n_layers < obj.dirt_opt.max_layers
     %
     [V,s,~] = build_lis(obj.bridge, obj.lis_opt.ratio_method, gz_func, gz_ref, gz_irt, log_weights);
     %
-    disp([str, sprintf(', #fevals=%3.3e \n', obj.n_evals)]);
+    disp([str, sprintf(', #fevals=%3.3e \n', obj.n_eval)]);
     %
     switch obj.lis_opt.method
         case {'reduction'}
@@ -59,7 +59,7 @@ while n_layers < obj.dirt_opt.max_layers
         obj.basis{n_layers+1}'*samples(:,ind), density(ind));
     %
     obj.logz = obj.logz + log(obj.irts{n_layers+1}.z);
-    obj.n_evals = obj.n_evals + obj.irts{n_layers+1}.approx.n_evals;
+    obj.n_eval = obj.n_eval + obj.irts{n_layers+1}.approx.n_eval;
     
     % stop
     if islast(obj.bridge)
@@ -81,6 +81,6 @@ end
 
 %
 fprintf('\n\niteration=%2d, Hell error=%3.3e, cum#fevals=%3.3e\n', ...
-    n_layers, sqrt(dh2), obj.n_evals);
+    n_layers, sqrt(dh2), obj.n_eval);
 %
 end

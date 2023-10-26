@@ -1,6 +1,5 @@
 function test_quad(polys, f, a, b)
 
-
 ana = integral(f, a, b);
     
 max_quad = size(polys, 2);

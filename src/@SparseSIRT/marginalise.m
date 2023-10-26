@@ -31,7 +31,7 @@ end
 obj.cum_P = cell(d-1, 1);
 for k = 1:(d-1)
     alpha = obj.order((k+1):d);
-    Kalpha = obj.approx.indices.array(:,alpha);
+    Kalpha = obj.approx.data.I.array(:,alpha);
     [~,~,iuni] = unique(Kalpha, 'rows');
     %
     obj.cum_P{obj.order(k)} = sparse((1:nc)',iuni(:),ones(nc,1),nc,numel(unique(iuni)) );
@@ -39,13 +39,13 @@ end
 %obj.cum_P{obj.order(d)} = speye(nc,nc);
 
 for k = 1:d
-    ind = obj.approx.indices.array(:,k);
+    ind = obj.approx.data.I.array(:,k);
     % evaluate polynomial basis on all cdf nodes
-    bk = eval_basis(obj.approx.oneds{k}, obj.oned_cdfs{k}.nodes(:));
+    bk = eval_basis(obj.approx.base.oneds{k}, obj.oned_cdfs{k}.nodes(:));
     obj.bases_cdf_nodes{k} = bk(:,ind+1); % cdf nodes for each indices, nc x nk
 end
 
-obj.fun_z = sum(obj.approx.data.^2);
+obj.fun_z = sum(obj.approx.data.coeff.^2);
 obj.z = obj.fun_z + obj.tau;
 
 end

@@ -13,7 +13,9 @@ X = [gridxx(:),gridyy(:)]';
 
 sigma = 5;
 a = 1;
-func = @(x) banana(x, sigma, a);
+model = Banana(sigma, a);
+func = @(x,mask) model.eval_potential_dirt(x);
+
 % plot
 clf
 fplot = reshape(func(X),nx,nx);
@@ -26,24 +28,11 @@ dom = BoundedDomain([xmin,xmax]);
 base = ApproxBases(Legendre(p), dom, d);
 %base = ApproxBases(Chebyshev1st(p), dom, d);
 
-%{
-s = AdaptiveSparseTensorAlgorithm();
-s.tol = 5e-2;
-s.bulkParameter = 0.5;
-s.adaptiveSampling = true;
-s.adaptationRule = 'reducedmargin';
-s.display = true;
-s.displayIterations = true;
-s.nbSamples = 10;
-s.maxNbSamples = 1e3;
-s.maxDimBasis = 100;
-%}
-
 opt = SparseOption();
 opt.tol = 1e-2;
 opt.max_sample_size = 5e3;
-opt.enrich_degree = 2;
-opt.adaptation_rule = 'margin'; %'reducedmargin';
+opt.enrich_degree = 1;
+opt.adaptation_rule = 'reducedmargin';
 %
 opt.init_sample_size = 2;
 opt.enrich_sample_size = 0.5; 

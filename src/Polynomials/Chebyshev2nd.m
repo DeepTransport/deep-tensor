@@ -25,6 +25,12 @@ classdef Chebyshev2nd < Spectral
             x = (2*x)-1;
         end   
 
+        function x = sample_measure_skip(obj, n)
+            left  = (min(obj.nodes) - 1)/2;
+            right = (max(obj.nodes) + 1)/2;
+            x = rand(1,n)*(right-left) + left;
+        end
+        
         function w = eval_measure(obj, x)
             t = 1 - x.^2;
             t(t<eps) = 0;

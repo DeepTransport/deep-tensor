@@ -1,130 +1,152 @@
-function obj = least_square(obj,func,deb)
+function obj = least_square(obj,func)
 
 % Implement Alg 4 of "Adaptive approximation by optimal weighted least 
 % squares methods". Giovanni Migliorati
 % The code is modified based on the AdaptiveSparseTensorAlgorithm of the
 % ApproximationToolbox
 
-d = ndims(obj);
-max_index = MultiIndices(reshape(cardinals(obj)-1,1,d));
+d = ndims(obj.base);
+max_index = MultiIndices(reshape(cardinals(obj.base)-1,1,d));
 
-if cardinal(obj.indices) == 0
-    Iold = [];
-    I = MultiIndices(zeros(1,d));
-    for i = 1:obj.opt.init_total_degree
-        Iadd = getReducedMargin(I);
-        I = I.addIndices(Iadd);
+% sample_factor: average number of samples per basis function
+sample_factor = ceil(obj.opt.init_sample_size);
+factor_add = ceil(obj.opt.enrich_sample_size);
+basis_adaptation = true;
+force_enrich_sample = false;
+
+if cardinal(obj.data.I) == 0
+    switch obj.opt.indexset
+        case {'hyperbolic'}
+            obj.data.I = SparseTools.hyperbolic_cross(d, obj.opt.init_total_degree);
+        otherwise
+            obj.data.I = SparseTools.total_degree(d, obj.opt.init_total_degree);
     end
-    rem = find((~(I<=max_index)));
-    Iadd = removeIndices(I,rem);
-    x = [];
-    y = [];
-    A = [];
-    w = [];
-    err = Inf;
-    l2_err = Inf;
+    rem = find((~(obj.data.I<=max_index)));
+    obj.data.I = removeIndices(obj.data.I,rem);
+    obj.data.x = random(obj, obj.data.I, sample_factor);
+    obj.data.y = func(obj.data.x);
+    obj.data.y = obj.data.y';
+    %
+    obj.data.A = eval_basis (obj, obj.data.I, obj.data.x);
+    obj.data.w = eval_weight(obj, obj.data.I, obj.data.x);
 else
-    I = obj.indices;
-    l2_err = Inf;
-    if isempty(obj.x)
-        Iold = [];
-        x = [];
-        y = [];
-        A = [];
-        w = [];
-        err = Inf;
-    else
-        Iold = I;
-        x = obj.x;
-        y = obj.y;
-        A = eval_basis(obj, I, x);
-        [coeff,err] = SparseFun.ls_solve(A,y',[]);
-        if ~isempty(deb)            
-            basis_at_z = eval_basis(obj, I, deb.samples);
-            approx = reshape(basis_at_z*coeff,[],size(deb.samples,2));
-            l2_err = sqrt(mean((deb.f(:) - approx(:)).^2))/sqrt(mean(deb.f(:)));
-        end
+    if isempty(obj.data.x)
+        obj.data.x = random(obj, obj.data.I, sample_factor);
+        obj.data.y = func(obj.data.x);
+        obj.data.y = obj.data.y';
     end
+    obj.data.A = eval_basis (obj, obj.data.I, obj.data.x);
+    obj.data.w = eval_weight(obj, obj.data.I, obj.data.x);
 end
+Iold = obj.data.I;
 
-if isempty(deb)
-    fprintf('+-----------+------------+------------+------------+\n');
-    fprintf('| Dim Basis | Nb Samples |  Dot prod. |  CV error  |\n');
-    fprintf('+-----------+------------+------------+------------+\n');
-else
+if isweighted(obj)
+    obj.data.A = obj.data.A.*sqrt(obj.data.w);
+    obj.data.y = obj.data.y.*sqrt(obj.data.w);
+end
+[obj.data.coeff,obj.data.qA,obj.data.rA] = SparseTools.ls_solve(obj.data.A,obj.data.y);
+[obj.data.err,obj.data.opt_err] = SparseTools.ls_cross_validate(obj.data);
+obj.l2_err = rel_error(obj);
+
+if isdebug(obj.var)
     fprintf('+-----------+------------+------------+------------+------------+\n');
     fprintf('| Dim Basis | Nb Samples |  Dot prod. |  CV error  |  L2 error  |\n');
     fprintf('+-----------+------------+------------+------------+------------+\n');
+else
+    fprintf('+-----------+------------+------------+------------+\n');
+    fprintf('| Dim Basis | Nb Samples |  Dot prod. |  CV error  |\n');
+    fprintf('+-----------+------------+------------+------------+\n');
 end
                 
-% sample_factor: average number of samples per basis function
-sample_factor = obj.opt.init_sample_size;
-factor_add = obj.opt.enrich_sample_size;
-basis_adaptation = true;
 %
-while (norm(err) > obj.opt.tol) && (size(x,2)<obj.opt.max_sample_size) && (cardinal(I)<obj.opt.max_dim_basis) && basis_adaptation
+while (norm(obj.data.err) > obj.opt.tol) && (size(obj.data.x,2)<obj.opt.max_sample_size) ...
+        && (cardinal(obj.data.I)<obj.opt.max_dim_basis) && basis_adaptation
     % Adaptive sampling on fixed basis
     % first add samples to the enriched basis functions
     if isempty(Iold)
-        Idiff = I;
+        Idiff = obj.data.I;
     else
-        Idiff = removeIndices(I,Iold);
+        Idiff = removeIndices(obj.data.I,Iold);
     end
     if cardinal(Idiff) > 0
-        xadd = sample_measure_reference(obj, ceil(cardinal(Idiff)*sample_factor));
-        x = [x, xadd];
+        xadd = random(obj, Idiff, sample_factor);
+        obj.data.x = [obj.data.x, xadd];
         yadd = func(xadd);
-        y = [y, yadd];
         %
-        Aadd = eval_basis(obj, I, xadd);
-        A = [A;Aadd];
-        [coeff,err] = SparseFun.ls_solve(A,y',[]);
-        if ~isempty(deb)            
-            basis_at_z = eval_basis(obj, I, deb.samples);
-            approx = reshape(basis_at_z*coeff,[],size(deb.samples,2));
-            l2_err = sqrt(mean((deb.f(:) - approx(:)).^2))/sqrt(mean(deb.f(:)));
+        Aadd = eval_basis (obj, obj.data.I, xadd);
+        wadd = eval_weight(obj, obj.data.I, xadd);
+        if isweighted(obj)
+            obj.data.y = [obj.data.y; yadd'.*sqrt(wadd)];
+            obj.data.w = [obj.data.w(:); wadd(:)];
+            Aadd = Aadd.*sqrt(wadd);
+        else
+            obj.data.y = [obj.data.y; yadd'];
         end
+        obj.data.A = [obj.data.A; Aadd];
+        if obj.opt.fast
+            [obj.data.coeff,obj.data.qA,obj.data.rA] = SparseTools.ls_add_rows(obj.data.qA, obj.data.rA, Aadd, obj.data.y);
+        else
+            [obj.data.coeff,obj.data.qA,obj.data.rA] = SparseTools.ls_solve(obj.data.A,obj.data.y);
+        end
+        [obj.data.err,obj.data.opt_err] = SparseTools.ls_cross_validate(obj.data);
+        obj.l2_err = rel_error(obj);
     end
-    opt_err = norm( A'*(A./size(x,2)) - eye(size(A,2)), 2);
     
     % adaptive sampling
     % err_stagn = Inf;
-    while (opt_err > obj.opt.opt_tol) && norm(err) > obj.opt.tol && size(x,2) < obj.opt.max_sample_size
+    flag = (obj.data.opt_err > obj.opt.opt_tol) || force_enrich_sample;
+    while flag && norm(obj.data.err) > obj.opt.tol && size(obj.data.x,2) < obj.opt.max_sample_size
         %disp('adapt sampling')
         %err_old = err;
         %opt_err_old = opt_err;
+        force_enrich_sample = false;
         %
         sample_factor = sample_factor + factor_add;
-        xadd = sample_measure_reference(obj, ceil(cardinal(I)*factor_add));
-        x = [x, xadd];
+        %
+        xadd = random(obj, obj.data.I, factor_add);
+        obj.data.x = [obj.data.x, xadd];
         yadd = func(xadd);
-        y = [y, yadd];
         %
-        Aadd = eval_basis(obj, I, xadd);
-        A = [A;Aadd];
-        [coeff,err] = SparseFun.ls_solve(A,y',[]);
-        %
-        opt_err = norm( A'*(A./size(x,2)) - eye(size(A,2)), 2);
-    end
-    Iold = I;
-    %
-    if ~isempty(deb)
-        basis_at_z = eval_basis(obj, I, deb.samples);
-        approx = reshape(basis_at_z*coeff,[],size(deb.samples,2));
-        l2_err = sqrt(mean((deb.f(:) - approx(:)).^2))/sqrt(mean(deb.f(:)));
-    end
-    if obj.opt.display_iterations
-        if isempty(deb)
-            fprintf('|           | %10d | %4.4e | %4.4e |\n',size(x,2),norm(opt_err),norm(err));
+        Aadd = eval_basis (obj, obj.data.I, xadd);
+        wadd = eval_weight(obj, obj.data.I, xadd);
+        if isweighted(obj)
+            obj.data.y = [obj.data.y; yadd'.*sqrt(wadd)];
+            obj.data.w = [obj.data.w(:); wadd(:)];
+            Aadd = Aadd.*sqrt(wadd);
         else
-            fprintf('|           | %10d | %4.4e | %4.4e | %4.4e |\n',size(x,2),norm(opt_err),norm(err),l2_err);
+            obj.data.y = [obj.data.y; yadd'];
+        end
+        obj.data.A = [obj.data.A; Aadd];
+        if obj.opt.fast
+            [obj.data.coeff,obj.data.qA,obj.data.rA] = SparseTools.ls_add_rows(obj.data.qA, obj.data.rA, Aadd, obj.data.y);
+        else
+            [obj.data.coeff,obj.data.qA,obj.data.rA] = SparseTools.ls_solve(obj.data.A,obj.data.y);
+        end
+        [obj.data.err,obj.data.opt_err] = SparseTools.ls_cross_validate(obj.data);
+        %{
+        err_stagn = norm(err-err_old)/obj.data.err;
+        opt_err_stagn = norm(opt_err-opt_err_old)/obj.data.opt_err;
+        if obj.opt.display_iterations
+            fprintf('|           | %10d | %4.4e |\n',size(obj.data.x,2),obj.data.err);
+        end
+        %}
+        flag = (obj.data.opt_err > obj.opt.opt_tol) || force_enrich_sample;
+    end
+    Iold = obj.data.I;
+    %
+    obj.l2_err = rel_error(obj);
+    if obj.opt.display_iterations
+        if isdebug(obj.var)
+            fprintf('|           | %10d | %4.4e | %4.4e | %4.4e |\n',size(obj.data.x,2),obj.data.opt_err,obj.data.err,obj.l2_err);
+        else
+            fprintf('|           | %10d | %4.4e | %4.4e |\n',size(obj.data.x,2),obj.data.opt_err,obj.data.err);
         end
     end
     % Adaptative basis with fixed sample, should we change weights? no!
-    m = size(x,2);
-    while (norm(err) > obj.opt.tol) 
-        err_old = err;
-        Itest = I;
+    m = size(obj.data.x,2);
+    while (norm(obj.data.err) > obj.opt.tol) && (obj.l2_err > obj.opt.tol)
+        err_old = obj.data.err;
+        Itest = obj.data.I;
         for kk = 1:obj.opt.enrich_degree
             switch lower(obj.opt.adaptation_rule)
                 case 'margin'
@@ -143,20 +165,25 @@ while (norm(err) > obj.opt.tol) && (size(x,2)<obj.opt.max_sample_size) && (cardi
             %
             Inew = Itest.addIndices(Iadd);
             if cardinal(Inew) > m
+                force_enrich_sample = true;
+                warning('dimension of candidate basis + dimension of existing basis > number of samples');
                 break;
             else
                 Itest = Inew;
             end
         end
-        Iadd = removeIndices(Itest,I);
-        Aadd = eval_basis(obj, Iadd, x);
-        Atest = [A,Aadd];
-        %Atest2 = eval_basis(obj, Itest, x);
-        %norm(Atest-Atest2)
-        coeff = SparseFun.ls_solve(Atest,y',[]);
+        if force_enrich_sample
+            break;
+        end
+        Iadd = removeIndices(Itest,obj.data.I);
+        Aadd = eval_basis(obj, Iadd, obj.data.x);
+        if isweighted(obj)
+            Aadd = Aadd.*sqrt(obj.data.w);
+        end
+        tmp_coeff = SparseTools.ls_add_cols(obj.data.qA, obj.data.rA, Aadd, obj.data.y);
         %
         [~,loc] = ismember(Iadd.array,Itest.array,'rows');
-        c_marg = coeff(loc,:);
+        c_marg = tmp_coeff(loc,:);
         norm_a_marg = sqrt(sum(c_marg.^2,2));
         switch lower(obj.opt.adaptation_rule)
             case 'margin'
@@ -173,61 +200,55 @@ while (norm(err) > obj.opt.tol) && (size(x,2)<obj.opt.max_sample_size) && (cardi
             rep = find( energy >= energy(end)*obj.opt.bulk_parameter, 1, 'first' );
             Iadd.array = Iadd.array(ind(1:rep),:);
         end
-        I = I.addIndices(Iadd);
-        Aadd = eval_basis(obj, Iadd, x);
-        A = [A,Aadd];
-        %A2 = eval_basis(obj, I, x);
-        %norm(A-A2)
-        [coeff,err] = SparseFun.ls_solve(A,y',[]);
-        opt_err = norm( A'*(A./size(x,2)) - eye(size(A,2)), 2);
-        if opt_err > obj.opt.opt_tol
+        obj.data.I = addIndices(obj.data.I,Iadd);
+        Aadd = eval_basis(obj, Iadd, obj.data.x);
+        if isweighted(obj)
+            Aadd = Aadd.*sqrt(obj.data.w);
+        end
+        obj.data.A = [obj.data.A, Aadd];
+        [obj.data.coeff,obj.data.qA,obj.data.rA] = SparseTools.ls_add_cols(obj.data.qA, obj.data.rA, Aadd, obj.data.y);
+        [obj.data.err,obj.data.opt_err] = SparseTools.ls_cross_validate(obj.data);
+        %
+        if obj.data.opt_err > obj.opt.opt_tol
             break
         end
         %
-        err_stagn = norm(err-err_old)/norm(err);
-        if (norm(err) > obj.opt.overfit_tol*norm(err_old)) || (err_stagn <= obj.opt.stagnation_tol)
+        err_stagn = norm(obj.data.err-err_old)/norm(obj.data.err);
+        if (norm(obj.data.err) > obj.opt.overfit_tol*norm(err_old)) || (err_stagn <= obj.opt.stagnation_tol)
             break
         end
-    end    
-    if ~isempty(deb)
-        basis_at_z = eval_basis(obj, I, deb.samples);
-        approx = reshape(basis_at_z*coeff,[],size(deb.samples,2));
-        l2_err = sqrt(mean((deb.f(:) - approx(:)).^2))/sqrt(mean(deb.f(:)));
     end
+    obj.l2_err = rel_error(obj);
     if obj.opt.display_iterations
-        if isempty(deb)
-            fprintf('| %9d |            | %4.4e | %4.4e |\n',cardinal(I),norm(opt_err),norm(err));
+        if isdebug(obj.var)
+            fprintf('| %9d |            | %4.4e | %4.4e | %4.4e |\n',cardinal(obj.data.I),obj.data.opt_err,obj.data.err,obj.l2_err);
         else
-            fprintf('| %9d |            | %4.4e | %4.4e | %4.4e |\n',cardinal(I),norm(opt_err),norm(err),l2_err);
+            fprintf('| %9d |            | %4.4e | %4.4e |\n',cardinal(obj.data.I),obj.data.opt_err,obj.data.err);
         end
     end
-    if (~isempty(deb) && l2_err < obj.opt.tol)
+    if obj.l2_err < obj.opt.tol
         break
     end
 end
 if obj.opt.display_iterations
-    if isempty(deb)
-        fprintf('+-----------+------------+------------+------------+\n');
-    else
+    if isdebug(obj.var)
         fprintf('+-----------+------------+------------+------------+------------+\n');
+    else
+        fprintf('+-----------+------------+------------+------------+\n');
     end
 end
 
-if isempty(deb)
-    fprintf('| %9d | %10d | %4.4e | %4.4e |\n',cardinal(I),size(x,2),norm(opt_err),norm(err));
-    fprintf('+-----------+------------+------------+------------+\n');
-else
-    fprintf('| %9d | %10d | %4.4e | %4.4e | %4.4e |\n',cardinal(I),size(x,2),norm(opt_err),norm(err),l2_err);
+if isdebug(obj.var)
+    fprintf('| %9d | %10d | %4.4e | %4.4e | %4.4e |\n',cardinal(obj.data.I),size(obj.data.x,2),obj.data.opt_err,obj.data.err,obj.l2_err);
     fprintf('+-----------+------------+------------+------------+------------+\n');
+else
+    fprintf('| %9d | %10d | %4.4e | %4.4e |\n',cardinal(obj.data.I),size(obj.data.x,2),obj.data.opt_err,obj.data.err);
+    fprintf('+-----------+------------+------------+------------+\n');
 end
 
-obj.indices = I;
-obj.data = coeff;
-obj.err = err;
-obj.A = A;
-obj.x = x;
-obj.w = [];
-obj.y = y;
-obj.n_evals = size(x,2);
+obj.n_eval = size(obj.data.x,2);
 
 end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+

@@ -19,11 +19,11 @@ block_basis = cell(d,1);
 block_basis_deri = cell(d,1);
 block_mlogw = cell(d,1);
 for k = 1:d
-    B = eval_basis(obj.approx.oneds{k}, r(k,:));
-    block_basis{k} = B(:,obj.approx.indices.array(:,k)+1);
-    dB = eval_basis_deri(obj.approx.oneds{k}, r(k,:));
-    block_basis_deri{k} = dB(:,obj.approx.indices.array(:,k)+1);
-    logw = eval_log_measure(obj.approx.oneds{k}, r(k,:));
+    B = eval_basis(obj.approx.base.oneds{k}, r(k,:));
+    block_basis{k} = B(:,obj.approx.data.I.array(:,k)+1);
+    dB = eval_basis_deri(obj.approx.base.oneds{k}, r(k,:));
+    block_basis_deri{k} = dB(:,obj.approx.data.I.array(:,k)+1);
+    logw = eval_log_measure(obj.approx.base.oneds{k}, r(k,:));
     block_mlogw{k} = -logw(:);
 end
 
@@ -33,7 +33,7 @@ pk_left = cell(d,1);
 Fm = cell(d,1); % accumulated ftt
 
 %
-F{obj.order(1)} = block_basis{obj.order(1)}.*obj.approx.data(:)';
+F{obj.order(1)} = block_basis{obj.order(1)}.*obj.approx.data.coeff(:)';
 for k = 2:d
     F{obj.order(k)} = F{obj.order(k-1)}.*block_basis{obj.order(k)};
 end
@@ -73,7 +73,7 @@ for j = 1:d
         if j > 1
             drl = F{obj.order(j-1)}.*drl;
         else
-            drl = drl.*obj.approx.data(:)';
+            drl = drl.*obj.approx.data.coeff(:)';
         end
         mrl = drl*obj.cum_P{obj.order(j)};
         % first sub, the second term, for the d(j+1)/dj term
@@ -87,8 +87,8 @@ for j = 1:d
             else
                 pk = reshape( pk_left{obj.order(k)}.*sum(reshape(tmp,nc*n,nk),2), nc, n);
             end
-            if obj.approx.oneds{obj.order(k)}.constant_weight
-                tmp = eval_measure(obj.approx.oneds{obj.order(k)}, obj.oned_cdfs{obj.order(k)}.nodes);
+            if obj.approx.base.oneds{obj.order(k)}.constant_weight
+                tmp = eval_measure(obj.approx.base.oneds{obj.order(k)}, obj.oned_cdfs{obj.order(k)}.nodes);
                 pk = pk.*tmp(:);
             end
             %

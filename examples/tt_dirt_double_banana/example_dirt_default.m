@@ -2,7 +2,9 @@
 sig = 0.3;
 %dat = [3.940392199905546; 4.403271869259551]; % 2 bananas
 dat = [3; 5]; % 2 bananas
-fun = @(z,arg) fun_banana(z, dat, sig, 1);
+model = DoubleBanana(sig, dat);
+
+fun = @(z) eval_potential_dirt(model, z);
 
 % Gaussian
 ref   = @(u) erfinv(u*2-1)*sqrt(2);

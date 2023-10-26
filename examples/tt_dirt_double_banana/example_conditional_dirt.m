@@ -1,6 +1,6 @@
 % define the joint density
 sig = 0.3;
-fun = @(z) joint_banana(z,sig);
+model = ConditionalBanana(sig);
 
 dom = BoundedDomain([-5,5]);
 diag = GaussReference(0, 1, dom);
@@ -10,10 +10,10 @@ base = ApproxBases(Lagrangep(2,30), dom, 3);
 
 temp = Tempering1('min_beta', 1E-4, 'ess_tol', 0.5);
 
-sirt_opt = FTTOption('max_als', 2, 'als_tol', 1E-8, 'local_tol', 1E-5, 'kick_rank', 3, 'init_rank', 30, 'max_rank', 50);
+sirt_opt = TTOption('max_als', 2, 'als_tol', 1E-8, 'local_tol', 1E-5, 'kick_rank', 3, 'init_rank', 30, 'max_rank', 50);
 dirt_opt = DIRTOption('method', 'Aratio');
 
-irt = TTDIRT(fun, base, temp, diag, sirt_opt, dirt_opt);
+irt = TTDIRT(@(x)model.eval_potential_joint(x), base, temp, diag, sirt_opt, dirt_opt);
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -42,7 +42,7 @@ for ii = 1:length(data)
     ry = eval_rt(irt, dat); % reference sample
     
     % true conditional, unnormalised
-    [mllkd,mlp] = fun([repmat(dat,1,size(xts,2));xts]);
+    [mllkd,mlp] = model.eval_potential_joint([repmat(dat,1,size(xts,2));xts]);
     bf = exp(-mllkd-mlp);
     % conditional irt density in target space, unnormalised
     rf = eval_potential(irt, [repmat(dat,1,size(xts,2));xts]);
@@ -67,7 +67,7 @@ for ii = 1:length(data)
     % conditional irt density in reference space, unnormalised
     [x,f] = eval_irt(irt, [repmat(ry,1,size(rts,2));rts]);
     % pullback density of the true conditinal
-    mlf = pullback(irt, fun, [repmat(ry,1,size(rts,2));rts]);
+    mlf = pullback(irt, @(x)model.eval_potential_joint(x), [repmat(ry,1,size(rts,2));rts]);
     %
     subplot(2,2,3)
     contour(rxs, rys, reshape(exp(-f(:)), n, n), 5, 'linewidth', 2)
@@ -88,28 +88,28 @@ for ii = 1:length(data)
     init = randn(2,1);
     tic;
     for irun=1:16
-        out1 = NUTS(@(x) log_target(fun,dat,x), init, 2^12);
+        out1 = NUTS(@(x)model.eval_potential_conditional(dat,x), init, 2^12);
         xx1(:,:,irun) = out1.samples;
     end
     toc
     %
     tic;
     for irun=1:16
-        out2 = NUTS(@(z) log_target_pullback_nuts(irt,fun,ry,z), init, 2^12);
+        out2 = NUTS(@(z)model.pullback_potential_nuts(irt,ry,z), init, 2^12);
         xs2 = eval_irt(irt, [repmat(ry,1,size(out2.samples,2));out2.samples]);
         xx2(:,:,irun) = xs2(2:3,:);
     end
     toc
     tic;
     for irun=1:16
-        out3 = pCN(@(z) log_target_pullback_pcn(irt,fun,ry,z), init, 2^12, log(10));
+        out3 = pCN(@(z)model.pullback_potential_pcn(irt,ry,z), init, 2^12, log(10));
         xs3 = eval_irt(irt, [repmat(ry,1,size(out3.samples,2));out3.samples]);
         xx3(:,:,irun) = xs3(2:3,:);
     end
     toc
     tic;
     for irun=1:16
-        out4 = pCN(@(z) log_target_pullback_pcn(irt,fun,ry,z), init, 2^12, log(2));
+        out4 = pCN(@(z)model.pullback_potential_pcn(irt,ry,z), init, 2^12, log(2));
         xs4 = eval_irt(irt, [repmat(ry,1,size(out4.samples,2));out4.samples]);
         xx4(:,:,irun) = xs4(2:3,:);
     end
@@ -185,7 +185,7 @@ end
 %{
 %debug the gradient
 x = [0,0,1]';
-[~,~,g1,g2] = fun(x);
+[~,~,g1,g2] = model.eval_potential_joint(x);
 g = g1+g2;
 tol = 1E-5;
 fp = zeros(size(g));
@@ -195,9 +195,9 @@ for i = 1:3
     xp(i) = xp(i)+tol;
     xm = x;
     xm(i) = xm(i)-tol;
-    [f1,f2] = fun(xp);
+    [f1,f2] = model.eval_potential_joint(xp);
     fp(i) = f1+f2;
-    [f1,f2] = fun(xm);
+    [f1,f2] = model.eval_potential_joint(xm);
     fm(i) = f1+f2;
 end
 norm((fp-fm)/(2*tol) - g)
@@ -220,9 +220,25 @@ end
 norm((fp-fm)/(2*tol) - g)
 %
 ry = eval_rt(irt, dat);
+u = [ry; z(2:3)];
+[f,g] = irt.pullback(@(x)model.eval_potential_joint(x),u);
+tol = 1E-5;
+fp = zeros(size(g));
+fm = zeros(size(g));
+for i = 1:3
+    up = u;
+    up(i) = up(i)+tol;
+    um = u;
+    um(i) = um(i)-tol;
+    fp(i) = irt.pullback(@(x)model.eval_potential_joint(x),up);
+    fm(i) = irt.pullback(@(x)model.eval_potential_joint(x),um);
+end
+norm((fp-fm)/(2*tol) - g)
+%
+ry = eval_rt(irt, dat);
 z = z(2:3);
-[f,g] = log_target_pullback(irt,fun,ry,z);
-tol = 1E-8;
+[f,g] = model.pullback_potential_nuts(irt,ry,z);
+tol = 1E-5;
 fp = zeros(size(g));
 fm = zeros(size(g));
 for i = 1:2
@@ -230,8 +246,8 @@ for i = 1:2
     zp(i) = zp(i)+tol;
     zm = z;
     zm(i) = zm(i)-tol;
-    fp(i) = log_target_pullback(irt,fun,ry,zp);
-    fm(i) = log_target_pullback(irt,fun,ry,zm);
+    fp(i) = model.pullback_potential(irt,ry,zp);
+    fm(i) = model.pullback_potential(irt,ry,zm);
 end
 norm((fp-fm)/(2*tol) - g)
 %}

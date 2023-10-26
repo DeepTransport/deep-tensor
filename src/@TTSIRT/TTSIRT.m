@@ -2,8 +2,34 @@ classdef TTSIRT < SIRT
     % TTSIRT class
     %
     % TTSIRT Properties:
-    %   ys          - A cell array holding squared FTT cores.
-    %   ms          - A cell array for computing the marginal density.
+    %   ys,ms - Cell arrays for computing the marginal density.
+    %
+    % TTSIRT Methods:
+    %   marginalise - 
+    %           Marginalises the approximation.
+    %   eval_pdf  - 
+    %           Evaluates the normalised (marginal) pdf.
+    %   eval_irt  - 
+    %           X = R^{-1}(Z), where X is the target random variable, R is
+    %           the Rosenblatt transport, and Z is the uniform random variable.
+    %           * Can map marginal random variables.
+    %   eval_cirt - 
+    %           Y|X = R^{-1}(Z, X), where X is given, (X,Y) jointly follow
+    %           the target represented by SIRT, Z is uniform.
+    %           * This function cannot handle marginal random variables.
+    %   eval_rt   - 
+    %           Z = R(X), where Z is uniform and X is target.
+    %           * Can map marginal random variables.
+    %   eval_rt_jac - 
+    %           Evaluates the Jacobian of Z = R(X).
+    %           * This function cannot handle marginal random variables.
+    %   random  - 
+    %           Generates random variables
+    %   sobol - Generates transformed sobol points
+    %   set_defensive - 
+    %           Resets the defensive term.
+    %
+    % See also SIRT, ONED, ONEDCDF, TTOPTION, and TTFun
     %
     %%%%%%%%%%%%%%%%%
     %
@@ -22,12 +48,21 @@ classdef TTSIRT < SIRT
     % % distribution, unnormalised
     %   potential = @(x) 0.5*sum((B*x).^2,1);
     %
-    % % Build the SIRT using Fourier basis
-    %   pol = Fourier(20, [-5,5]);
-    %   opt = FTToption('als_tol',1E-4,'max_rank',20,'sqrt_flag',true);
-    %   dx  = B\randn(d, 1E4);
-    %   sx  = B\randn(d, 1E3);
-    %   irt =  SIRT(potential, d, pol, opt, 'debug_x', dx, 'sample_x', sx);
+    % % Set samples used for initilizing TT and debug
+    %   debug_x  = B\randn(d, 1E4);
+    %   sample_x = B\randn(d, 1E3);
+    %   deb = InputData(sample_x, debug_x);
+    %
+    % % Build the SIRT using Fourier basis, with an approximation domain 
+    % % [-5,5]^d.
+    %   pol  = Fourier(20);
+    %   dom  = BoundedDomain([-5,5]);
+    %   base = ApproxBases(Legendre(40), dom, d);
+    %
+    % % Cross Options
+    %   opt = TTOption('als_tol',1E-4,'max_rank',20);
+    %
+    %   irt = TTSIRT(potential, base, opt, 'var', deb);
     %
     %%%%%%%%%%%%%%%%%
     %
@@ -141,11 +176,19 @@ classdef TTSIRT < SIRT
     %
     %%%%%%%%%%%%%%%%%
     %
-    % see also ONED, ONEDCDF, FTTOPTION, and FTT
     
     properties
         ys
         ms
+    end
+    
+    properties (Constant)
+        defaultVar = InputData()
+        defaultTau = 1E-8
+        defaultOpt = TTOption()
+        defaultData = TTData()
+        defaultPoly = Lagrangep(2,20)
+        defaultDomain = BoundedDomain([-1,1])
     end
     
     methods (Static)
@@ -192,21 +235,13 @@ classdef TTSIRT < SIRT
     
     methods
 
-        function obj = TTSIRT(potential_func, base, varargin)
-            defaultOption   = FTTOption();
-            obj@SIRT(defaultOption, potential_func, base, varargin{:});
+        function obj = TTSIRT(potential, arg, varargin)
+            obj@SIRT(potential, arg, varargin{:});
             obj.order = [];
         end
 
-        function approx = approximate(obj, func, base, opt, samples, deb, previous)
-            if isempty(previous)
-                approx = FTT(func, base, opt, 'samples', samples, 'debug', deb);
-            elseif isa(previous, 'FTT')
-                approx = FTT(func, previous, opt, 'samples', samples, 'debug', deb);
-            else
-                warning('previous data should be a TT object')
-                approx = FTT(func, base, opt, 'samples', samples, 'debug', deb);
-            end
+        function approx = approximate(obj, func, arg, opt, var)
+            approx = TTFun(func, arg, opt, 'var', var);
             if use_amen(approx)
                 approx = round(approx);
             end

@@ -15,7 +15,13 @@ classdef Legendre < Recurr
         function x = sample_measure(obj, n)
             x = rand(1,n)*2 - 1;
         end        
-        
+
+        function x = sample_measure_skip(obj, n)
+            left  = (min(obj.nodes) - 1)/2;
+            right = (max(obj.nodes) + 1)/2;
+            x = rand(1,n)*(right-left) + left;
+        end
+
         function w = eval_measure(obj, x)
             w = 0.5*ones(size(x));
         end        
